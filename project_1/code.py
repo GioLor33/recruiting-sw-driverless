@@ -88,7 +88,13 @@ binary_img = cv2.medianBlur(binary_img,9)
 # Threshold the image in order to get a "mask" in binary image with only the three cones
 _, binary_image = cv2.threshold(binary_img, 127, 255, cv2.THRESH_BINARY)
 
+# From the binary image, it is easy to extract the contours
+contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+for contour in contours:
+    x, y, w, h = cv2.boundingRect(contour)
+    cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
 cv2.imshow('binary after hsv thresholding',binary_image)
-cv2.imshow('hsv',hsv)
+cv2.imshow('img',img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
