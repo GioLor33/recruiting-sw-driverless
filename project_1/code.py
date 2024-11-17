@@ -110,6 +110,7 @@ contour_filtered = [
 contour_sorted = sorted(contour_filtered, key=lambda x: (-x[1]))
 
 bounding_boxes = []
+colors = []
 cone_in_focus = []
 while len(contour_sorted) > 0:
     base = contour_sorted[0]
@@ -118,6 +119,12 @@ while len(contour_sorted) > 0:
     cone_in_focus.append(base)
     i = 0
     contour_sorted.remove(base)
+
+    # Find the color of the base
+    x_center = x + w//2 + 25    # the '+25' is needed due to the artifacts in the image, mainly in the center cone
+    y_center = y + h//2
+    colors.append(img[y_center, x_center])  #in BGR
+    cv2.circle(img, (x_center, y_center), 1, (0,255,0), 1)
 
     for info in contour_sorted[:]:
         x, y, w, h = info
@@ -139,6 +146,37 @@ while len(contour_sorted) > 0:
 
     bounding_boxes.append((x,y,w,h))
     cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+# STEP 4: Create the .txt file with the cones+bboxes info
+# To be more efficient, I saved the color of the cone already in the previous loop. In fact, I considered the
+# center of the base bbox to be sure to get the right color. Here, therefore, I simply write the information
+# on the .txt file.
+
+i = 0
+with open('bboxes.txt', 'w') as f:
+    for bbox in bounding_boxes:
+        hsv = cv2.cvtColor(np.uint8([[colors[i]]]), cv2.COLOR_BGR2HSV)[0][0]
+        hue = hsv[0]
+
+        # 0–15	    Red-Orange
+        # 15–85	    Yellow-Green
+        # 85–125	Green-Cyan
+        # 125–170	Cyan-Blue
+        # 170–180	Magenta-Purple
+
+        if 0 <= hue < 15:
+            color = 'orange'
+        elif 15 <= hue < 85:
+            color = 'yellow'
+        elif 85 <= hue < 170:
+            color = 'blue'
+        else:
+            color = 'unknown'
+
+        x, y, w, h = bbox
+
+        f.write(f'{color}: ({x}, {y}, {x+w}, {y+h})\n')
+        i += 1
 
 cv2.imshow('binary after hsv thresholding',binary_image)
 cv2.imshow('img',img)
