@@ -90,11 +90,58 @@ _, binary_image = cv2.threshold(binary_img, 127, 255, cv2.THRESH_BINARY)
 
 # From the binary image, it is easy to extract the contours
 contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-for contour in contours:
-    x, y, w, h = cv2.boundingRect(contour)
-    cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+# Since from the HSV the white and black lines in the cone are not visible, we need to combine their bboxes 
+# to get the final bounding boxes of each cone. Since the cones have a particular shape such that the bbox of
+# the base has a width which is bigger than the bboxes of the upper parts of the cone, the idea is to find one
+# base at a time and check all the others bbox to get which ones belong to such base. 
+# To do so, I filtered the contours found by the y-values in descending order (from bbox which start at the 
+# bottom to top); this assures to find the base  of a cone (or at least the bottom-visible part of it).
+# For each base found, I checked all the other boxes to see if they are positioned above the base and inside
+# its width.  More conditions are added to be sure to detect only one cone, the comments on that can be found
+# in the code below.
+
+#print(len(contours)) -> we can see that too many contours where found, some with a very small area. We need to filer them
+contour_filtered = [
+    cv2.boundingRect(contour)
+    for contour in contours
+    if cv2.boundingRect(contour)[2] * cv2.boundingRect(contour)[3] > 20
+]
+contour_sorted = sorted(contour_filtered, key=lambda x: (-x[1]))
+
+bounding_boxes = []
+cone_in_focus = []
+while len(contour_sorted) > 0:
+    base = contour_sorted[0]
+    x, y, w, h = base
+    cone_in_focus = []
+    cone_in_focus.append(base)
+    i = 0
+    contour_sorted.remove(base)
+
+    for info in contour_sorted[:]:
+        x, y, w, h = info
+        
+        if x > cone_in_focus[0][0] and x + w < cone_in_focus[0][0] + cone_in_focus[0][2]:
+            if w < cone_in_focus[i][2]: 
+                cone_in_focus.append(info)
+                contour_sorted.remove(info)
+                i += 1
+            else:
+                # If the width of the bbox is bigger than the last bbox added to the cone, it means we found
+                # the base of another cone. We can break the loop.
+                break
+    
+    x = cone_in_focus[0][0]
+    y = cone_in_focus[i][1]
+    w = cone_in_focus[0][2]
+    h = cone_in_focus[0][1] + cone_in_focus[0][3] - cone_in_focus[i][1]
+
+    bounding_boxes.append((x,y,w,h))
+    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
 cv2.imshow('binary after hsv thresholding',binary_image)
 cv2.imshow('img',img)
+cv2.imwrite('bboxes.png', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
