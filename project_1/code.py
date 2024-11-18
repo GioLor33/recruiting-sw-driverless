@@ -2,85 +2,77 @@ import cv2
 import numpy as np
 import os
 
-def create_original(name):
-    min = 50
-    max = 200
+min = 50
+max = 200
 
-    img = cv2.imread('corrupted.png')
-    rows, cols, _ = img.shape
-    height = rows//2
+img = cv2.imread('corrupted.png')
+rows, cols, _ = img.shape
+height = rows//2
 
-    # STEP 1: Solve the rolling shift
+# STEP 1: Solve the rolling shift
 
-    top_image = img[height:rows, 0:cols]
-    M = np.float32([[1,0,0],[0,1,height]])
-    img = cv2.warpAffine(img,M,(cols,rows))
-    img[0:height, 0:cols] = top_image
+top_image = img[height:rows, 0:cols]
+M = np.float32([[1,0,0],[0,1,height]])
+img = cv2.warpAffine(img,M,(cols,rows))
+img[0:height, 0:cols] = top_image
 
-    # STEP 2: Solve the color shift.
+# STEP 2: Solve the color shift.
 
-    # Since the corrupted.png file is an image which is normalized but has been 'corrupted', meaning it has 
-    # a (probably different) offset in the three BGR channels, we need to first find the offset for each part of 
-    # the image (lower and upper part). This can be done by comparing the color of the corrupted image with the 
-    # color of the original one (which needs to be normalized).
+# Since the corrupted.png file is an image which is normalized but has been 'corrupted', meaning it has 
+# a (probably different) offset in the three BGR channels, we need to first find the offset for each part of 
+# the image (lower and upper part). This can be done by comparing the color of the corrupted image with the 
+# color of the original one (which needs to be normalized).
 
-    # Y=541 X=128: [250,158,3] -> due to the y value, this is in the lower part of the image
-    bgr_lowerPart = np.array([250,158,3])
-    color_lowerPart = img[541,128]
-    offset_lowerPart = np.array([0,0,0])
+# Y=541 X=128: [250,158,3] -> due to the y value, this is in the lower part of the image
+bgr_lowerPart = np.array([250,158,3])
+color_lowerPart = img[541,128]
+offset_lowerPart = np.array([0,0,0])
 
-    # Y=267 X=564: [40,195,240] -> due to the y value, this is in the upper part of the image
-    bgr_upperPart = np.array([40,195,240])
-    color_upperPart = img[267,564]
-    offset_upperPart = np.array([0,0,0])
+# Y=267 X=564: [40,195,240] -> due to the y value, this is in the upper part of the image
+bgr_upperPart = np.array([40,195,240])
+color_upperPart = img[267,564]
+offset_upperPart = np.array([0,0,0])
 
-    offset_lowerPart = np.array([
-        color_lowerPart[a] - min - (max - min) * bgr_lowerPart[a] / 255 for a in range(3)
-    ])
-    offset_upperPart = np.array([
-        color_upperPart[a] - min - (max - min) * bgr_upperPart[a] / 255 for a in range(3)
-    ])
+offset_lowerPart = np.array([
+    color_lowerPart[a] - min - (max - min) * bgr_lowerPart[a] / 255 for a in range(3)
+])
+offset_upperPart = np.array([
+    color_upperPart[a] - min - (max - min) * bgr_upperPart[a] / 255 for a in range(3)
+])
 
-    # To compute the BGR values of the original image, I used the following formulas on each one of the BGR channels:
+# To compute the BGR values of the original image, I used the following formulas on each one of the BGR channels:
 
-    # original_img_channel * (max-min) / 255 + min = normalized_img_channel
-    # &
-    # corrupted_img_channel = normalized_img_channel + offset => normalized_img_channel = corrupted_img_channel - offset
+# original_img_channel * (max-min) / 255 + min = normalized_img_channel
+# &
+# corrupted_img_channel = normalized_img_channel + offset => normalized_img_channel = corrupted_img_channel - offset
 
-    # => original_img_channel * (max-min) / 255 + min = corrupted_img_channel - offset
-    # => original_img_channel = (corrupted_img_channel - offset - min) * 255 / (max-min)
+# => original_img_channel * (max-min) / 255 + min = corrupted_img_channel - offset
+# => original_img_channel = (corrupted_img_channel - offset - min) * 255 / (max-min)
 
-    # where corrupted_img_channel is given, the offset has been computed above while original_img_channel is our target.
+# where corrupted_img_channel is given, the offset has been computed above while original_img_channel is our target.
 
-    for i in range(rows):
-        offset = offset_lowerPart
-        if i < height:
-            offset = offset_upperPart
+for i in range(rows):
+    offset = offset_lowerPart
+    if i < height:
+        offset = offset_upperPart
 
-        for j in range(cols):
-            for a in range(3):
-                img[i,j][a] = (img[i,j][a] - offset[a] - min)*255/(max-min)
+    for j in range(cols):
+        for a in range(3):
+            img[i,j][a] = (img[i,j][a] - offset[a] - min)*255/(max-min)
 
-    print(img[267,564])
-    print(img[541,128])
+print(img[267,564])
+print(img[541,128])
 
-    # As we can see, the BGR values obtained for the two points whose values where noted during the calibration 
-    # procedure are (more or less) correct. In the image some artifcats appears, but they are probably due to the
-    # normalization process applied on the image (compression)
+# As we can see, the BGR values obtained for the two points whose values where noted during the calibration 
+# procedure are (more or less) correct. In the image some artifcats appears, but they are probably due to the
+# normalization process applied on the image (compression)
 
-    cv2.imwrite(name,img)
-
-
-
-name = 'original.png'
-if not os.path.exists(name):
-    create_original(name)
+cv2.imwrite('original.png',img)
 
 # STEP 3: Detect the three cones in the picture
 
 # Use HSV color space to separate the foreground from the background. The range in the HSV color space used
 # was empirically found.
-img = cv2.imread(name)
 hsv = img.copy()
 hsv = cv2.cvtColor(hsv, cv2.COLOR_BGR2HSV)
 binary_img = cv2.inRange(hsv, (0, 180, 50), (179, 255, 255))
@@ -181,8 +173,8 @@ with open('bboxes.txt', 'w') as f:
         f.write(f'{color}: ({x}, {y}, {x+w}, {y+h})\n')
         i += 1
 
-cv2.imshow('binary after hsv thresholding',binary_image)
-cv2.imshow('img',img)
+#cv2.imshow('binary after hsv thresholding',binary_image)
+#cv2.imshow('img',img)
 cv2.imwrite('bboxes.png', img)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+#cv2.waitKey(0)
+#cv2.destroyAllWindows()
