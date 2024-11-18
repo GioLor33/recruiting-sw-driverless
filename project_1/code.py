@@ -34,9 +34,12 @@ def create_original(name):
     color_upperPart = img[267,564]
     offset_upperPart = np.array([0,0,0])
 
-    for a in range(3):
-        offset_upperPart[a] = color_upperPart[a] - min - (max-min)*(bgr_upperPart[a])/(255)
-        offset_lowerPart[a] = color_lowerPart[a] - min - (max-min)*(bgr_lowerPart[a])/(255)
+    offset_lowerPart = np.array([
+        color_lowerPart[a] - min - (max - min) * bgr_lowerPart[a] / 255 for a in range(3)
+    ])
+    offset_upperPart = np.array([
+        color_upperPart[a] - min - (max - min) * bgr_upperPart[a] / 255 for a in range(3)
+    ])
 
     # To compute the BGR values of the original image, I used the following formulas on each one of the BGR channels:
 
@@ -86,7 +89,7 @@ binary_img = cv2.inRange(hsv, (0, 180, 50), (179, 255, 255))
 binary_img = cv2.medianBlur(binary_img,9)
 
 # Threshold the image in order to get a "mask" in binary image with only the three cones
-_, binary_image = cv2.threshold(binary_img, 127, 255, cv2.THRESH_BINARY)
+_, binary_image = cv2.threshold(binary_img, 0, 255, cv2.THRESH_BINARY +  cv2.THRESH_OTSU)
 
 # From the binary image, it is easy to extract the contours
 contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -105,7 +108,7 @@ contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX
 contour_filtered = [
     cv2.boundingRect(contour)
     for contour in contours
-    if cv2.boundingRect(contour)[2] * cv2.boundingRect(contour)[3] > 20
+    #if cv2.boundingRect(contour)[2] * cv2.boundingRect(contour)[3] > 20
 ]
 contour_sorted = sorted(contour_filtered, key=lambda x: (-x[1]))
 
@@ -121,7 +124,7 @@ while len(contour_sorted) > 0:
     contour_sorted.remove(base)
 
     # Find the color of the base
-    x_center = x + w//2 + 25    # the '+25' is needed due to the artifacts in the image, mainly in the center cone
+    x_center = x + w//2 
     y_center = y + h//2
     colors.append(img[y_center, x_center])  #in BGR
     cv2.circle(img, (x_center, y_center), 1, (0,255,0), 1)
